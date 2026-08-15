@@ -124,8 +124,24 @@ budgets, genuinely infeasible ones, adversarial input, and cases that need data-
 judgement. Numbers are reported as fractions, not percentages — n is far too small for
 "100%" to mean what it looks like.
 
-Results are recorded in [DECISIONS.md](DECISIONS.md) alongside the reasoning, including
-the cases that got *worse* after a change and why.
+Latest run against live data sources:
+
+| Metric | Value |
+|---|---|
+| Cases / crashes | 14 / **0** |
+| Verifier matched the expected outcome | **6/6** constrained cases |
+| Cases that scheduled stops | **10/14** |
+| Stops carrying a source | **117/117** |
+| Cases needing repair | 3/14 (mean 0.21 iterations) |
+| Mean / p95 latency | 92 s / 287 s — every case paid a cold lookup |
+
+Full table and per-case reasoning: [docs/samples/benchmark-results.md](docs/samples/benchmark-results.md).
+A real generated plan: [docs/samples/goa-3day-itinerary.md](docs/samples/goa-3day-itinerary.md).
+
+Two of the four zero-stop cases are *correct* — an unresolvable destination and a budget
+that genuinely cannot be met should return nothing rather than invent something. The
+other two are real gaps, documented in [DECISIONS.md](DECISIONS.md) rather than smoothed
+over.
 
 ---
 

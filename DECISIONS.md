@@ -152,3 +152,27 @@ mapped classes being imported — without it, autogenerate compares against empt
 and emits a migration whose body is `pass`. That failure mode is worth naming: it
 produces a real-looking migration file that does nothing, and it stays invisible until a
 column change silently fails to apply. CI gates on drift for exactly that reason.
+
+## Benchmark: 14 cases against live data
+
+| Metric | Value |
+|---|---|
+| Cases / crashes | 14 / **0** |
+| Verifier matched expectation | **6/6** constrained cases |
+| Cases scheduling stops | **10/14** |
+| Stops grounded | **117/117** |
+| Cases needing repair | 3/14, mean 0.21 iterations |
+| Mean / p95 latency | 92.3 s / 286.8 s |
+
+Latency is a worst case, not steady state: every case in this run paid a cold Overpass
+lookup (60–90 s per unseen city), and cached lookups are effectively free for 24 hours.
+
+**On the four cases that scheduled nothing** — two are the correct outcome.
+`gibberish_destination` has no resolvable place and `goa_absurd_budget` states a budget
+that cannot be met; both should return empty rather than fabricate. The remaining two,
+`sparse_small_town` (Chikmagalur) and `niche_interest_needs_category_relaxation`
+(Lucknow), are genuine gaps — and both ran 280–380 s, which points at Overpass timing
+out rather than those towns having nothing mapped. They are precisely the cases the
+bounded acquisition agent exists to recover, and that agent has **not been measured**:
+it is wired and makes real API calls, but has never executed a decision because no
+funded model key has been available. Until it has, no recovery claim is made for it.
