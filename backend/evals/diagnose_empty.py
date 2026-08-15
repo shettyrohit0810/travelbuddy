@@ -20,7 +20,7 @@ from evals.cases import CASES
 
 
 def _diagnose(case) -> Dict[str, Any]:
-    from app.agents.understanding import parse_trip_request
+    from app.agents.understanding import parse_request
     from app.tools.poi_overpass import _geocode
     from app.tools.destination_search import destination_search
     from app.agents.itinerary import _fetch_candidates
@@ -30,7 +30,7 @@ def _diagnose(case) -> Dict[str, Any]:
     report: Dict[str, Any] = {"case": case.name, "query": case.query}
 
     # Stage 1 -- what destination did we even parse?
-    reqs = parse_trip_request(case.query)
+    reqs = parse_request(case.query)
     destination = reqs.destination if reqs.destination and reqs.destination != "Unknown" else None
     report["parsed_destination"] = reqs.destination
     report["days"] = reqs.days

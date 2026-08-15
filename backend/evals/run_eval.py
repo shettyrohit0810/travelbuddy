@@ -19,13 +19,13 @@ from evals.cases import CASES
 
 
 def _run_case(case) -> Dict[str, Any]:
-    from app.agents.orchestrator import plan_trip_workflow
+    from app.agents.orchestrator import plan_trip
 
     started = time.perf_counter()
     error = None
     state: Dict[str, Any] = {}
     try:
-        state = plan_trip_workflow(query=case.query)
+        state = plan_trip(query=case.query)
     except Exception as e:  # a crash is itself a result worth recording
         error = f"{type(e).__name__}: {e}"
     elapsed_s = time.perf_counter() - started
@@ -35,8 +35,8 @@ def _run_case(case) -> Dict[str, Any]:
 
     slots = []
     if itinerary is not None:
-        for day in itinerary.itinerary:
-            slots.extend(day.slots)
+        for day in itinerary.days:
+            slots.extend(day.stops)
 
     return {
         "name": case.name,
@@ -47,7 +47,7 @@ def _run_case(case) -> Dict[str, Any]:
         "valid": None if verification is None else verification.valid,
         "violations": [] if verification is None else [v.code for v in verification.violations],
         "repair_attempts": (state.get("repair_attempts", 0) if state else 0),
-        "days_scheduled": len(itinerary.itinerary) if itinerary else 0,
+        "days_scheduled": len(itinerary.days) if itinerary else 0,
         "slots_scheduled": len(slots),
         "slots_grounded": sum(1 for s in slots if s.source and s.source.strip()),
     }

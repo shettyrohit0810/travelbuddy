@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.types import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -24,7 +25,10 @@ class Trip(Base):
     destination: Mapped[str] = mapped_column(String(200))
     days: Mapped[int] = mapped_column(Integer)
     travelers: Mapped[int] = mapped_column(Integer, default=1)
-    plan_data: Mapped[dict] = mapped_column(JSONB)
+    # JSONB on Postgres; plain JSON elsewhere. The variant keeps the model usable
+    # against SQLite so API tests can assert authorisation behaviour without a live
+    # database -- if that required Postgres, CI would simply skip those checks.
+    plan_data: Mapped[dict] = mapped_column(JSONB().with_variant(JSON(), "sqlite"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True
     )

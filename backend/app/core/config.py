@@ -47,8 +47,11 @@ class Settings(BaseSettings):
     POSTGRES_PORT: str = "5432"
     DATABASE_URL: str | None = None
 
-    SECRET_KEY: str = "change-me-in-production"
-    REFRESH_SECRET_KEY: str = "change-me-too-in-production"
+    # 32 bytes minimum: PyJWT warns below that for HMAC-SHA256, and a short key
+    # weakens the signature rather than merely being untidy. These defaults are
+    # development-only and `assert_production_ready()` refuses to let them ship.
+    SECRET_KEY: str = "dev-only-access-secret-not-for-production-use"
+    REFRESH_SECRET_KEY: str = "dev-only-refresh-secret-not-for-production-use"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
@@ -59,6 +62,26 @@ class Settings(BaseSettings):
 
     # POI grounding needs no key: OpenStreetMap Overpass and Open-Meteo are both open.
     OPENTRIPMAP_API_KEY: str | None = None
+
+    def assert_production_ready(self) -> None:
+        """Fail loudly if the app is about to run with development secrets.
+
+        Called from the entrypoint rather than at import time so tests and local runs
+        stay frictionless while a real deployment cannot silently sign tokens with a
+        key that is published in this repository.
+        """
+        problems = []
+        for name in ("SECRET_KEY", "REFRESH_SECRET_KEY"):
+            value = getattr(self, name)
+            if value.startswith("dev-only-"):
+                problems.append(f"{name} is still the development default")
+            if len(value.encode()) < 32:
+                problems.append(f"{name} is shorter than the 32 bytes HMAC-SHA256 needs")
+        if self.SECRET_KEY == self.REFRESH_SECRET_KEY:
+            problems.append("SECRET_KEY and REFRESH_SECRET_KEY are identical, so a "
+                            "refresh token would be accepted as an access token")
+        if problems:
+            raise RuntimeError("Unsafe configuration: " + "; ".join(problems))
 
     @property
     def LLM_PROVIDER(self) -> str | None:

@@ -1,0 +1,62 @@
+:root {
+  --bg: #0f1115;
+  --surface: #171a21;
+  --surface-2: #1e222b;
+  --border: #2a2f3a;
+  --text: #e8eaed;
+  --muted: #9aa3b2;
+  --accent: #5b9dff;
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --err: #f87171;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f7f8fa; --surface: #ffffff; --surface-2: #f0f2f6; --border: #dfe3ea;
+    --text: #16181d; --muted: #5b6472; --accent: #2563eb;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  line-height: 1.55;
+}
+
+.wrap { max-width: 860px; margin: 0 auto; padding: 40px 20px 80px; }
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 20px; margin-bottom: 18px;
+}
+.muted { color: var(--muted); }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+input[type="text"] {
+  flex: 1 1 380px; padding: 12px 14px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+  font-size: 15px;
+}
+button {
+  padding: 12px 20px; border-radius: 10px; border: none; cursor: pointer;
+  background: var(--accent); color: #fff; font-weight: 600; font-size: 15px;
+}
+button:disabled { opacity: 0.55; cursor: default; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; }
+code { background: var(--surface-2); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+.badge {
+  display: inline-block; padding: 2px 9px; border-radius: 999px;
+  font-size: 12px; font-weight: 600;
+}
+.badge-ok { background: rgba(74,222,128,.14); color: var(--ok); }
+.badge-warn { background: rgba(251,191,36,.14); color: var(--warn); }
+.badge-err { background: rgba(248,113,113,.14); color: var(--err); }
+pre {
+  background: var(--surface-2); padding: 10px; border-radius: 8px;
+  overflow-x: auto; font-size: 12px; margin: 6px 0 0;
+}

@@ -30,9 +30,12 @@ CASES = [
     ),
     EvalCase(
         name="kyoto_moderate_budget",
-        query="Plan a 2 day cultural trip to Kyoto for 2 people with a budget of 20000",
+        query="Plan a 2 day cultural trip to Kyoto for 2 people with a budget of 120000",
         category="normal",
         expect_satisfiable=True,
+        notes="Mumbai->Kyoto is 6,373km, roughly 70k for two. An earlier version of "
+              "this case said 20000 and expected success; the verifier correctly "
+              "disagreed, and the case was wrong, not the verifier.",
     ),
     EvalCase(
         name="paris_no_budget_stated",
@@ -51,10 +54,11 @@ CASES = [
     # --- tight but repairable ---------------------------------------------
     EvalCase(
         name="kyoto_tight_budget",
-        query="Plan a 2 day cultural trip to Kyoto for 2 people with a budget of 16000",
+        query="Plan a 2 day cultural trip to Kyoto for 2 people with a budget of 76000",
         category="tight",
         expect_satisfiable=True,
-        notes="Overruns on first pass; the repair loop should absorb it into activities.",
+        notes="Just above the ~70k transport floor, so almost nothing is left for "
+              "activities. Exercises the repair loop absorbing an activities overspend.",
     ),
 
     # --- genuinely infeasible ---------------------------------------------

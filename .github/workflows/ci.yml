@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:      # manual runs exercise the live network path
+  schedule:
+    - cron: '17 6 * * 1'  # weekly, catches upstream OSM/Wikidata drift
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend — migrations, tests, eval
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: travelbuddy
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d travelbuddy"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    env:
+      POSTGRES_SERVER: localhost
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: travelbuddy
+      POSTGRES_PORT: 5432
+      # No API keys in CI, deliberately: the pipeline must prove it degrades honestly
+      # (empty results plus warnings, never fabricated places) and that is the path
+      # that runs unconfigured.
+      #
+      # Live POI lookups are off for push/PR. OpenStreetMap Overpass is a donated
+      # community service and a cold lookup costs 60-90s per city; hitting it on every
+      # commit is slow and impolite. The scheduled and manual runs cover the real path.
+      TRAVELBUDDY_DISABLE_LIVE_POI: ${{ (github.event_name == 'push' || github.event_name == 'pull_request') && '1' || '' }}
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Apply migrations from an empty database
+        run: alembic upgrade head
+
+      - name: Assert migrations match the models
+        # A migration whose body is `pass` looks like success. Gate on it rather than
+        # trusting that autogenerate was run.
+        run: |
+          alembic revision --autogenerate -m "ci-drift-check" 2>&1 | tee /tmp/drift.log
+          if grep -qiE "Detected (added|removed|changed)" /tmp/drift.log; then
+            echo "::error::Models and migrations have drifted."
+            grep -iE "Detected (added|removed|changed)" /tmp/drift.log
+            exit 1
+          fi
+          echo "No drift."
+
+      - name: Run tests
+        run: pytest -q
+
+      - name: Run eval harness
+        run: python -m evals.run_eval --json eval-results.json
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-results
+          path: backend/eval-results.json
+          if-no-files-found: warn
+
+  frontend:
+    name: Frontend — typecheck and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run build
