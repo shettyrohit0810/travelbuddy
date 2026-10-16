@@ -14,40 +14,66 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from app.tools._http import get_json
-from app.tools import poi_overpass
+from app.tools import geocoding, poi_overpass
 
 logger = logging.getLogger("app.agents.acquisition_tools")
 
-MAX_RADIUS_METERS = 30000
+MAX_RADIUS_METERS = 45000
+
+# Agent turns run against a wall clock; a single lookup must not consume it.
+AGENT_QUERY_TIMEOUT_S = 25
 MAX_LIMIT = 200
 
 
-def geocode_candidates(name: str, limit: int = 8) -> Dict[str, Any]:
+def geocode_candidates(name: str, limit: int = 5) -> Dict[str, Any]:
     """Return ALL plausible resolutions, not just the top-ranked one.
 
-    This is the tool that makes the Genoa-class bug addressable. The deterministic
-    geocoder has to pick one match by rule; an agent can look at "Genoa, Italy (pop
-    580k)" sitting above "Goa, India" for the query "Goa" and recognise the mismatch.
-    It does not get to invent coordinates -- only to choose among real candidates.
+    This is the tool that makes an ambiguous place name an agent's problem rather than
+    a ranking rule's. The deterministic path has to commit to one match; an agent can
+    look at "Genoa, Italy (pop 580k)" sitting above "Goa, India" for the query "Goa"
+    and notice the mismatch. It never invents coordinates -- it only chooses among real
+    candidates, each carrying the search radius implied by its own bounding box.
     """
     try:
-        data = get_json(poi_overpass.GEOCODE_URL, {"name": name, "count": min(limit, 20)})
-    except Exception as e:
-        logger.error(f"geocode_candidates failed for {name!r}: {e}")
-        return {"query": name, "error": str(e), "candidates": []}
+        results = get_json(
+            geocoding.NOMINATIM_URL,
+            {"q": name, "format": "json", "limit": min(max(int(limit), 1), 10),
+             "addressdetails": 1},
+            geocoding._HEADERS, timeout=20,
+        )
+    except Exception as exc:
+        logger.error(f"geocode_candidates failed for {name!r}: {exc}")
+        return {"query": name, "error": str(exc), "candidates": []}
 
-    candidates = [
-        {
-            "name": r.get("name"),
-            "country": r.get("country"),
-            "admin1": r.get("admin1"),
-            "population": r.get("population"),
-            "lat": r.get("latitude"),
-            "lon": r.get("longitude"),
-        }
-        for r in (data.get("results") or [])
-    ]
-    return {"query": name, "candidates": candidates, "count": len(candidates)}
+    candidates = []
+    for item in results or []:
+        bbox = None
+        raw = item.get("boundingbox")
+        if raw and len(raw) == 4:
+            try:
+                bbox = tuple(float(v) for v in raw)
+            except (TypeError, ValueError):
+                bbox = None
+        try:
+            place = geocoding.ResolvedPlace(
+                lat=float(item["lat"]), lon=float(item["lon"]),
+                display_name=geocoding._shorten(item.get("display_name", name)),
+                kind=item.get("addresstype") or item.get("type"), bbox=bbox,
+            )
+        except (KeyError, TypeError, ValueError):
+            continue
+        candidates.append({
+            "display_name": place.display_name,
+            "kind": place.kind,
+            "lat": place.lat,
+            "lon": place.lon,
+            # Surfaced so the agent can pass a radius matched to the place's real
+            # extent rather than guessing one -- a city radius around a state centroid
+            # is how a three-day plan ends up repeating one archaeological site.
+            "suggested_radius_m": place.search_radius_m,
+        })
+
+    return {"query": name, "count": len(candidates), "candidates": candidates}
 
 
 def search_pois(
@@ -68,7 +94,11 @@ def search_pois(
     limit = max(1, min(int(limit), MAX_LIMIT))
 
     query = _build_query(lat, lon, radius_m, require_notable, limit)
-    data = poi_overpass._query_overpass(query, f"agent@{lat:.3f},{lon:.3f}")
+    # One round, short timeout: an agent turn must leave room for the turns after
+    # it. A dead provider should cost this call, not the whole investigation.
+    data = poi_overpass._query_overpass(
+        query, f"agent@{lat:.3f},{lon:.3f}", rounds=1, timeout_s=AGENT_QUERY_TIMEOUT_S
+    )
     if data is None:
         return {"error": "provider unavailable", "count": 0, "pois": [], "radius_m": radius_m,
                 "require_notable": require_notable}

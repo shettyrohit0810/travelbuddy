@@ -155,3 +155,31 @@ def test_llm_brain_constructs_for_each_supported_provider(monkeypatch):
         monkeypatch.setattr(config.settings, "OPENAI_API_KEY", None, raising=False)
         monkeypatch.setattr(config.settings, attr, value, raising=False)
         assert LLMBrain().provider == expected
+
+
+def test_success_claimed_without_any_tool_call_is_rejected():
+    """Observed with a real model: it reported having geocoded and searched a town after
+    making zero tool calls. A success it cannot have observed is a fabrication, and the
+    trace must say so rather than recording it as a win."""
+    brain = ScriptedBrain([Finish(True, "Found plenty of attractions",
+                                  reasoning="Searched a 5km radius and found many POIs")])
+    t = run_agent(agent_name="test", goal="g", brain=brain, tool_specs=SPECS,
+                  tool_impls=_tools([]), max_tool_calls=5)
+    assert t.outcome == "unsubstantiated"
+    assert t.tool_calls_used == 0
+    assert "without calling any tool" in t.summary
+
+
+def test_genuine_success_after_a_tool_call_is_still_accepted():
+    brain = ScriptedBrain([ToolCall("probe", {}), Finish(True, "found enough")])
+    t = run_agent(agent_name="test", goal="g", brain=brain, tool_specs=SPECS,
+                  tool_impls=_tools([]), max_tool_calls=5)
+    assert t.outcome == "succeeded"
+
+
+def test_giving_up_without_tool_calls_is_not_flagged_as_fabrication():
+    """Only a success claim needs evidence; an honest 'I could not' does not."""
+    brain = ScriptedBrain([Finish(False, "no data available")])
+    t = run_agent(agent_name="test", goal="g", brain=brain, tool_specs=SPECS,
+                  tool_impls=_tools([]), max_tool_calls=5)
+    assert t.outcome == "gave_up"

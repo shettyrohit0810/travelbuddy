@@ -183,7 +183,8 @@ OVERPASS_ROUNDS = 2
 OVERPASS_BACKOFF_S = 5
 
 
-def _query_overpass(query: str, location: str) -> Optional[dict]:
+def _query_overpass(query: str, location: str, rounds: Optional[int] = None,
+                    timeout_s: Optional[int] = None) -> Optional[dict]:
     """Try every endpoint, then retry the whole set after a short backoff.
 
     Measured behaviour of the public Overpass instances under repeated use: the same
@@ -192,13 +193,19 @@ def _query_overpass(query: str, location: str) -> Optional[dict]:
     very little, so this makes two full passes before concluding a location genuinely
     has no data. Returns None only if everything fails.
     """
+    # Callers on a clock (the acquisition agent) pass a tighter budget: the default
+    # 2 rounds x 2 endpoints x 150s can exceed an entire agent wall-clock budget in
+    # a single call, which is how one lookup consumed 118s of a 120s run.
+    rounds = rounds or OVERPASS_ROUNDS
+    request_timeout = timeout_s or (OVERPASS_TIMEOUT_S + 60)
+
     last_error = None
-    for round_index in range(OVERPASS_ROUNDS):
+    for round_index in range(rounds):
         if round_index:
             time.sleep(OVERPASS_BACKOFF_S)
         for url in OVERPASS_ENDPOINTS:
             try:
-                data = post_form(url, {"data": query}, headers=_HEADERS, timeout=OVERPASS_TIMEOUT_S + 60)
+                data = post_form(url, {"data": query}, headers=_HEADERS, timeout=request_timeout)
                 if data.get("elements"):
                     return data
                 # Overpass reports server-side query timeouts as HTTP 200 with an
@@ -210,7 +217,7 @@ def _query_overpass(query: str, location: str) -> Optional[dict]:
                 last_error = e
             logger.warning(
                 f"Overpass {url} unusable for {location!r} "
-                f"(round {round_index + 1}/{OVERPASS_ROUNDS}): {last_error}"
+                f"(round {round_index + 1}/{rounds}): {last_error}"
             )
     logger.error(f"All Overpass endpoints failed for {location!r}: {last_error}")
     return None

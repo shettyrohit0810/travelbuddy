@@ -16,8 +16,11 @@ PROVIDERS = {
         "base_url": None, "model": "gpt-4o-mini",
         "supports_parse": True, "supports_embeddings": True,
     },
+    # Model ids move: Groq retired llama-3.3-70b-versatile, and a stale id fails at
+    # request time with "model does not exist", not at config time. Verify against
+    # GET /models when a provider starts erroring rather than guessing a replacement.
     "groq": {
-        "base_url": "https://api.groq.com/openai/v1", "model": "llama-3.3-70b-versatile",
+        "base_url": "https://api.groq.com/openai/v1", "model": "openai/gpt-oss-120b",
         "supports_parse": False, "supports_embeddings": False,
     },
     "xai": {
