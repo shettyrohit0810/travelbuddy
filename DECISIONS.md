@@ -176,3 +176,51 @@ out rather than those towns having nothing mapped. They are precisely the cases 
 bounded acquisition agent exists to recover, and that agent has **not been measured**:
 it is wired and makes real API calls, but has never executed a decision because no
 funded model key has been available. Until it has, no recovery claim is made for it.
+
+---
+
+## What CI found the first time it actually ran
+
+The workflow had been written and read correctly, and the repo carried an explicit note
+that it had never executed. Its first three runs failed, each on a defect that no local
+run could have surfaced. Recorded because "the CI config looks right" turned out to be
+worth very little.
+
+**1. The Postgres driver was chosen by a default that moved.** `alembic upgrade head`
+died with `ModuleNotFoundError: No module named 'psycopg'`. The DSN used a bare
+`postgresql://` scheme and let SQLAlchemy pick the DBAPI — a default that is psycopg2
+through SQLAlchemy 2.0 and psycopg 3 from 2.1. With `sqlalchemy>=2.0.28` unpinned, the
+local venv resolved 2.0.52 and worked while a clean CI install resolved 2.1.x and asked
+for a driver that was never a dependency. The test suite runs against in-memory SQLite
+and never constructs the Postgres engine, so no amount of local testing would have hit
+it. Fixed by naming the driver in the URL rather than pinning a version: relying on an
+upstream default is the defect, and the next default change would reintroduce it.
+
+**2. An unguarded network call could abort a whole planning request.** The benchmark
+crashed one case with `URLError: <urlopen error _ssl.c:993: The handshake operation
+timed out>`. `_geocode` in `tools/weather.py` was the last unguarded HTTP call in the
+codebase, and it broke the contract of its own caller — `weather_lookup` promises an
+empty forecast on failure and guards its *forecast* request, but the geocode call it
+makes first raised straight past that and out of the graph. A trip plan was lost because
+an optional weather enrichment could not complete a TLS handshake. Every failure mode
+now collapses to `None`, which the caller already handled.
+
+The logging detail is worth keeping: the failure is reported in the helper, not the
+caller, because the caller cannot tell a real "no such place" from a timeout. The same
+run logged "found no match" for two destinations that certainly exist, which sends
+anyone reading the logs after the wrong problem entirely.
+
+**3. Two outbound User-Agent headers pointed at a URL that does not resolve.** Nominatim
+and Overpass both ask for a contactable identifier, and a dead URL is worse than none —
+a maintainer rate-limiting a misbehaving client has nowhere to look.
+
+The eval harness behaved as designed throughout: it exited non-zero on the crash and
+gated the build, which is the whole reason it reports crashes as a first-class metric
+rather than averaging them away. CI now passes end to end, including the migration drift
+gate, which is therefore verified by execution rather than by inspection.
+
+Note that CI runs the benchmark with `TRAVELBUDDY_DISABLE_LIVE_POI=1`, because Overpass
+is a donated service and should not be hit on every push. So the CI run schedules zero
+stops by design, and the harness prints its own warning saying the grounding numbers
+from such a run mean nothing. The grounding figures quoted above come from local runs
+against live data; the scheduled and manual workflows cover that path.

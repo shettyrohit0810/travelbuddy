@@ -1,5 +1,7 @@
 # TravelBuddy
 
+[![CI](https://github.com/shettyrohit0810/travelbuddy/actions/workflows/ci.yml/badge.svg)](https://github.com/shettyrohit0810/travelbuddy/actions/workflows/ci.yml)
+
 A trip planner where the itinerary is decided by a constraint solver, not by a language
 model.
 
@@ -105,7 +107,7 @@ exists to prevent.
 cd backend && pytest -q
 ```
 
-134 tests. The scheduler carries **property-based tests** (Hypothesis) asserting that
+147 tests. The scheduler carries **property-based tests** (Hypothesis) asserting that
 its output always satisfies the validator and that it is deterministic run-to-run. That
 suite found a real soundness bug: costs were quantised to integer cents for the knapsack
 but charged at full float precision, so a sub-cent cost rounded to zero, was selected as
@@ -156,6 +158,9 @@ that doesn't.
 - **Some destinations genuinely have little OpenStreetMap coverage.** Those plans come
   back sparse or empty with a warning. That is the honest outcome, not a bug to paper
   over with invented places.
+- **Opening hours are modelled but not enforced.** `open_windows` exists on the
+  candidate type and no scheduling code reads it, so a venue closed at the hour it was
+  scheduled for would still be placed. The field is declared, not honoured.
 - **Costs are labelled estimates, not quoted prices.** Transport uses distance bands;
   attractions use a per-category rate table. Neither claims to be live pricing.
 - **Travel time is haversine distance at an assumed average speed**, not routed against
