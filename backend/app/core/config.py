@@ -95,13 +95,24 @@ class Settings(BaseSettings):
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
     def _assemble_dsn(cls, value: str | None, info) -> str:
+        # The driver is named explicitly rather than left to SQLAlchemy's default for a
+        # bare `postgresql://` scheme. That default is not stable across releases: it is
+        # psycopg2 up to SQLAlchemy 2.0 and psycopg (v3) from 2.1, so an unpinned
+        # `sqlalchemy>=2.0` plus a bare scheme resolves to whichever driver the install
+        # happened to pick -- and fails with ModuleNotFoundError at engine construction,
+        # not at config time. requirements.txt ships psycopg2-binary, so say psycopg2.
         if value:
+            # An explicit `postgresql+driver://` is the caller's choice; only the bare
+            # scheme is pinned, since that one is relying on a default rather than
+            # stating an intent.
+            if value.startswith("postgresql://"):
+                return value.replace("postgresql://", "postgresql+psycopg2://", 1)
             return value
         import urllib.parse
         data = info.data
         password = urllib.parse.quote_plus(data.get("POSTGRES_PASSWORD", ""))
         return (
-            f"postgresql://{data.get('POSTGRES_USER')}:{password}"
+            f"postgresql+psycopg2://{data.get('POSTGRES_USER')}:{password}"
             f"@{data.get('POSTGRES_SERVER')}:{data.get('POSTGRES_PORT')}/{data.get('POSTGRES_DB')}"
         )
 
