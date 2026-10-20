@@ -10,11 +10,43 @@ FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 
 @ttl_cache(seconds=1800)
 def _geocode(location: str) -> tuple[float, float] | None:
-    data = get_json(GEOCODING_URL, {"name": location, "count": 1})
+    """Coordinates for a place name, or None if it cannot be resolved.
+
+    Every failure mode collapses to None, including transport failures. This was the
+    one unguarded network call left in the codebase, and it broke the contract of its
+    own caller: `weather_lookup` promises an empty forecast when a lookup fails, but a
+    raise here escaped past that, through `weather_node`, and aborted the entire
+    planning request. A benchmark run failed exactly that way on an SSL handshake
+    timeout -- a trip plan lost because an optional weather enrichment could not
+    complete its TLS handshake.
+
+    The failure is logged here rather than at the caller, which cannot tell a genuine
+    "no such place" from a timeout. Reporting a network failure as "found no match"
+    would send anyone reading the logs after the wrong thing entirely.
+    """
+    try:
+        data = get_json(GEOCODING_URL, {"name": location, "count": 1})
+    except Exception as e:
+        logger.warning(f"Open-Meteo geocoding request failed for {location!r} "
+                       f"({type(e).__name__}: {e}); continuing without a forecast.")
+        return None
+
+    if not isinstance(data, dict):
+        logger.warning(f"Open-Meteo geocoding returned an unexpected payload for "
+                       f"{location!r}: {type(data).__name__}")
+        return None
+
     results = data.get("results") or []
     if not results:
         return None
-    return results[0]["latitude"], results[0]["longitude"]
+
+    top = results[0]
+    try:
+        return float(top["latitude"]), float(top["longitude"])
+    except (KeyError, TypeError, ValueError) as e:
+        logger.warning(f"Open-Meteo geocoding match for {location!r} had no usable "
+                       f"coordinates: {e}")
+        return None
 
 
 @ttl_cache(seconds=1800)
