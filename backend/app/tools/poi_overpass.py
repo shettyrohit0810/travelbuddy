@@ -47,7 +47,7 @@ OVERPASS_TIMEOUT_S = 90
 
 # Overpass asks clients to identify themselves so abusive traffic can be blocked
 # without banning the whole shared endpoint.
-_HEADERS = {"User-Agent": "TravelBuddy/1.0 (github.com/shettyrohit0810/travelbuddy-trip-planner)"}
+_HEADERS = {"User-Agent": "TravelBuddy/1.0 (+https://github.com/shettyrohit0810/travelbuddy)"}
 
 # OSM tag -> the category keys ACTIVITY_COST_BY_CATEGORY already understands, so cost
 # estimation stays consistent with the rest of the planner.

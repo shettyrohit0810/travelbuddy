@@ -30,7 +30,7 @@ logger = logging.getLogger("app.tools.wikidata")
 
 WIKIDATA_API = "https://www.wikidata.org/w/api.php"
 BATCH_SIZE = 50
-_HEADERS = {"User-Agent": "TravelBuddy/1.0 (github.com/shettyrohit0810/travelbuddy-trip-planner)"}
+_HEADERS = {"User-Agent": "TravelBuddy/1.0 (+https://github.com/shettyrohit0810/travelbuddy)"}
 
 # Ratings must stay inside the 0-5 band the scheduler expects, so the raw count is
 # compressed logarithmically rather than scaled linearly. Sitelink counts are extremely
